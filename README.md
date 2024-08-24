@@ -58,23 +58,14 @@ https://scrollzkp.notion.site/Scroll-ETH-Tokyo-2024-dfc355f140ff4c489ee11bcf7c58
 1. 🚀Deploy on Scroll - $2000 (Pool prize)
 https://app.akindo.io/hackathons/3dXM7ZO2WsxvlkXp?tab=overview
 
+TESTNET fauset  
+https://thirdweb.com/scroll-sepolia-testnet  
 
 
 
-
-
-API3:  
-https://github.com/api3-ecosystem/ETH-Tokyo
-
-Avail:  
 
 NERO:  
 https://nerochain.notion.site/NERO-Chain-ETHTokyo-2024-cd076bbad8dc47ffb9730f4d4114cdc9
-
-BNB:  
-NEO-X:  
-Metamask/Linear:  
-
 
 DB:
 https://chronus.click/phpmyadmin/

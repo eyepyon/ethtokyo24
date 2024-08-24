@@ -18,6 +18,7 @@ class Door extends Model
     protected $fillable = [
         'id',
         'name',
+        'api_key',
         'device_uuid',
         'device_secret',
     ];
@@ -46,7 +47,17 @@ class Door extends Model
      * )
      */
     private $name;
-
+0
+    /**
+     * api_key
+     * @var String
+     * @OA\Property(
+     *  type="String",
+     *  description="",
+     *  example=
+     * )
+     */
+    private $api_key;
 
     /**
      * device_uuid

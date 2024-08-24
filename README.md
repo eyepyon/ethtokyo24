@@ -71,3 +71,9 @@ DB:
 https://chronus.click/phpmyadmin/
 
 
+▼スマートロック連動。SESAMEが新バージョンのAPIになって改悪
+https://biz.candyhouse.co/
+
+
+
+

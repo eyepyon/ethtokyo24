@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
+use App\Models\Door;
 use Illuminate\Support\Facades\Auth;
 
 class HomeController extends Controller
@@ -14,9 +15,14 @@ class HomeController extends Controller
      *
      * @return void
      */
-    public function __construct()
+    public function __construct($apiKey, $secretKey, $uuid)
+//    public function __construct()
     {
         $this->middleware('auth');
+
+        $this->apiKey = $apiKey;
+        $this->secretKey = $secretKey;
+        $this->uuid = $uuid;
     }
 
     /**
@@ -120,5 +126,131 @@ class HomeController extends Controller
 
         return $balanceEther;
     }
+
+
+    /**
+     * @param $apiKey
+     * @param $uuid
+     * @return mixed
+     */
+    private function __getStatus($apiKey, $uuid)
+    {
+        return $this->__sendRequest('GET',   null, $apiKey);
+    }
+
+    /**
+     * @param $apiKey
+     * @param $secretKey
+     * @param $uuid
+     * @param $command
+     * @return mixed
+     */
+    private function __control($apiKey, $secretKey, $uuid, $command)
+    {
+        $sign = $this->__generateSign($secretKey, $uuid);
+        $data = [
+            'sign' => $sign,
+            'cmd' => $command
+        ];
+        return $this->__sendRequest('POST', $data, $apiKey);
+    }
+
+    /**
+     * @param $secretKey
+     * @param $uuid
+     * @return string
+     */
+    private function __generateSign($secretKey, $uuid)
+    {
+        $timestamp = time() * 1000; // Current time in milliseconds
+        $message = $uuid . $timestamp;
+        $cmac = hash_hmac('cmac-aes-128', $message, hex2bin($secretKey));
+        return base64_encode(hex2bin($cmac)) . $timestamp;
+    }
+
+    /**
+     * @param $method
+     * @param $data
+     * @param $apiKey
+     * @return mixed
+     */
+    private function __sendRequest($method, $data = null, $apiKey)
+    {
+
+        $url = 'https://app.candyhouse.co/api/sesame2/';
+        $headers = [
+            'x-api-key: ' . $apiKey
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            $headers[] = 'Content-Type: application/json';
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if (curl_errno($ch)) {
+            throw new Exception(curl_error($ch));
+        }
+
+        curl_close($ch);
+
+        if ($httpCode >= 400) {
+            throw new Exception("API request failed with status code: $httpCode");
+        }
+
+        return json_decode($response, true);
+    }
+
+    public function request_smart_key()
+    {
+        // Usage example
+        $apiKey = '';
+        $deviceSecret = '';
+        $deviceUuid = '';
+
+        $Door = Door::Select()->where('id',1 )->first();
+        if(isset($Door->device_uuid)){
+            $apiKey = $Door->api_key;
+            $deviceUuid = $Door->device_uuid;
+            $deviceSecret = $Door->device_seceret;
+        }
+
+        if($apiKey == ""){
+            exit;
+        }
+
+        try {
+            // Get lock status
+            $status = $this->__getStatus($apiKey, $deviceUuid);
+            echo "Battery: " . $status['battery'] . "%\n";
+            echo "Lock status: " . ($status['locked'] ? 'Locked' : 'Unlocked') . "\n";
+
+            // Unlock the door
+            $result = $this->__control($apiKey, $deviceSecret, $deviceUuid, 'unlock');
+            echo "Unlock command sent.\n";
+
+            // Wait for a few seconds
+            sleep(5);
+
+            // Lock the door
+            $result = $this->__control($apiKey, $deviceSecret, $deviceUuid, 'lock');
+            echo "Lock command sent.\n";
+
+        } catch
+        (Exception $e) {
+            echo "Error: " . $e->getMessage() . "\n";
+        }
+
+    }
+
 
 }

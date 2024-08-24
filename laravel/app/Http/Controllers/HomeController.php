@@ -27,17 +27,21 @@ class HomeController extends Controller
     public function index(Request $request)
     {
         $address = "";
-        if(isset($request->address)){
+        if (isset($request->address)) {
             $address = trim($request->address);
         }
 
         $user = Auth::user();
-        if($address !=""){
+        if ($address != "") {
             $user->wallet = $address;
             $user->save();
         }
+        $address = "0xD47C631D51c51Fb640Fc90cD32B2218539A370EF";
+        $id = date("YmdHis");
 
-        return view('home',compact('user'));
+        $balanceEther = $this->__getScrollBalance($address, $id);// SepoliaETH
+
+        return view('home', compact('user'));
     }
 
     public function terms()
@@ -50,69 +54,71 @@ class HomeController extends Controller
         return view('privacy');
     }
 
-    private function __getSymbolBalance()
+
+    /**
+     * Cabinet経由でScrollを参照する
+     * @see https://github.com/drlecks/Simple-Web3-Php
+     * @param $address
+     * @param $id
+     * @return void
+     */
+    private function __getScrollBalance($address = "0xD47C631D51c51Fb640Fc90cD32B2218539A370EF", $id = 1)
     {
+        //  https://document.cabinet-node.com/eth_getbalance
 
+        $token = "c6bb7b3b5f1cfd35ae7d146ab5ec8138"; // テストネットだし無料垢なのでトークンは隠さないけど本来は隠して
+        // cabinet-node.comのURLを設定
+        $url = 'https://gateway-api.cabinet-node.com/' . $token;
 
-// 入力テキストデータ
-        $inputText = <<<DATA
-Account Information
-┌───────────────────┬──────────────────────────────────────────────────────────────────┐
-│ Property          │ Value                                                            │
-├───────────────────┼──────────────────────────────────────────────────────────────────┤
-│ Address           │ NCF3EF-NTCESH-2D7B6H-6AFDHM-U3P63Z-VROVNM-GTA                    │
-│ Address Height    │ 3144559                                                          │
-│ Public Key        │ 017020405597D9FA06F90AF75AAE07F3B3888492786B87A2DEA3D109CFC37BF8 │
-│ Public Key Height │ 3147785                                                          │
-│ Importance        │ 0                                                                │
-│ Importance Height │ 0                                                                │
-└───────────────────┴──────────────────────────────────────────────────────────────────┘
-Balance Information
-┌──────────────────┬─────────────────┬─────────────────┬───────────────────┐
-│ Mosaic Id        │ Relative Amount │ Absolute Amount │ Expiration Height │
-├──────────────────┼─────────────────┼─────────────────┼───────────────────┤
-│ 6BED913FA20223F8 │ 92.7            │ 92700264        │ Never             │
-└──────────────────┴─────────────────┴─────────────────┴───────────────────┘
-DATA;
-        //
-        $inputTextFile = file_get_contents("/var/www/yaseme/files/bank.txt");
+        // JSONリクエストデータを準備
+        $data = json_encode([
+            'jsonrpc' => '2.0',
+            'method' => 'eth_getBalance',
+            'params' => [
+                $address,
+//              'latest'
+            ],
+            'id' => $id
+        ]);
 
-        // データを行に分割
-        $lines = explode("\n", $inputTextFile);
+        // cURLセッションを初期化
+        $ch = curl_init();
 
-        // 配列を初期化
-        $accountInfo = [];
-        $balanceInfo = [];
-        $isBalanceSection = false; // バランス情報セクションのフラグ
+        // cURLオプションを設定
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($data)
+        ]);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);  // SSL証明書の検証を有効化
 
-        foreach ($lines as $lineX) {
-            $line = trim(mb_convert_encoding($lineX,"utf-8","auto"));
-            // セクションの切り替え
-            if (strpos($line, 'Balance Information') !== false) {
-                $isBalanceSection = true;
-            }
+        // リクエストを実行し、レスポンスを取得
+        $response = curl_exec($ch);
 
-            // データ行の解析
-            if (preg_match('/│(.*?)+│(.*?)+│/', $line, $matches)) {
-                if (!$isBalanceSection) {
-                    // アカウント情報の抽出
-                    $accountInfo[$matches[1]] = trim($matches[2]);
-                } else {
-                    // バランス情報の抽出
-                    // このスクリプトでは、最初のバランス情報のみを抽出します。
-                    // 複数行を解析する場合は、ロジックの調整が必要です。
-                    $balanceInfo[$matches[1]] = trim($matches[2]);
-                }
+        // エラーチェック
+        if (curl_errno($ch)) {
+            echo 'cURLエラー: ' . curl_error($ch);
+        } else {
+            // レスポンスをJSONデコード
+            $result = json_decode($response, true);
+
+            if (isset($result['result'])) {
+                // 16進数の結果をデコード
+                $balanceWei = hexdec($result['result']);
+                $balanceEther = $balanceWei / 1e18;  // WeiからEtherに変換
+                echo "残高: " . $balanceEther . " ETH";
+            } else {
+                echo "エラー: " . json_encode($result['error']);
             }
         }
 
-        // 結果の出力
-        echo "Account Information:\n";
-        print_r($accountInfo);
-        echo "Balance Information:\n";
-        print_r($balanceInfo);
+        // cURLセッションを閉じる
+        curl_close($ch);
 
-
+        return $balanceEther;
     }
 
 }
